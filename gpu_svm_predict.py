@@ -117,7 +117,6 @@ def tune_svm_parameters(train_set, test_set, scale=True, class_weight=True,
             for gamma_idx, gamma in enumerate(gamma_range):
                 current_combination += 1
                 
-                # **Key improvement 1: Add progress output for all combinations**
                 if verbose:
                     progress_pct = (current_combination / total_combinations) * 100
                     print(f"[{current_combination}/{total_combinations}] ({progress_pct:.1f}%) Testing C={cost:.6f}, gamma={gamma:.6f}...", end=' ')
@@ -163,7 +162,6 @@ def tune_svm_parameters(train_set, test_set, scale=True, class_weight=True,
                         score = model.score(X_val, y_val)
                         cv_scores.append(float(score))
                         
-                        # **Key improvement 2: Release GPU memory in time**
                         del X_tr, X_val, model
                         gc.collect()
                         cp.get_default_memory_pool().free_all_blocks()
@@ -188,7 +186,6 @@ def tune_svm_parameters(train_set, test_set, scale=True, class_weight=True,
                         print(f"✗ Failed: {str(e)}")
                     continue
                 
-                # **Key improvement 3: Regularly force garbage collection**
                 if current_combination % 10 == 0:
                     gc.collect()
                     cp.get_default_memory_pool().free_all_blocks()
@@ -208,7 +205,6 @@ def tune_svm_parameters(train_set, test_set, scale=True, class_weight=True,
             print(f"  CV Score: {best_score:.4f}")
             print(f"{'='*60}\n")
         
-        # **Key improvement 4: Clean up memory after each cross_para is completed**
         gc.collect()
         cp.get_default_memory_pool().free_all_blocks()
     
