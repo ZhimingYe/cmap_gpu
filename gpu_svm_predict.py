@@ -43,10 +43,11 @@ def scale_data_by_column(train_set, test_set):
     
     return [tmp_train, tmp_test]
 
+
 def tune_svm_parameters(train_set, test_set, scale=True, class_weight=True,
                        kernel='rbf', verbose=False, cross_para=[4, 6, 8, 10]):
     """
-    SVM parameter tuning (GPU acceleration) - Optimized version
+    SVM parameter tuning (GPU acceleration) - 优化版本
     """
     import gc
     
@@ -82,7 +83,7 @@ def tune_svm_parameters(train_set, test_set, scale=True, class_weight=True,
         wts = None
     
     # Define parameter search range
-    cost_range = [2**i for i in range(-5, 16, 2)]
+    cost_range = [2**i for i in range(-5, 10, 2)]
     gamma_range = [2**i for i in range(-15, 4, 2)]
     
     # Prepare features
@@ -326,5 +327,4 @@ def PredictDomain(train_set, test_set, scale=True, class_weight=True,
         return pred_st_svm_np
     else:
         return pred_sc_svm_np
-
-
+# %%
