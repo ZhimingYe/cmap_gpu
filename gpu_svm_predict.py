@@ -43,12 +43,13 @@ def scale_data_by_column(train_set, test_set):
     
     return [tmp_train, tmp_test]
 
-
 def tune_svm_parameters(train_set, test_set, scale=True, class_weight=True,
                        kernel='rbf', verbose=False, cross_para=[4, 6, 8, 10]):
     """
-    SVM parameter tuning (GPU acceleration)
+    SVM parameter tuning (GPU acceleration) - Optimized version
     """
+    import gc
+    
     parameter = {}
     
     # Data normalization
@@ -61,7 +62,7 @@ def tune_svm_parameters(train_set, test_set, scale=True, class_weight=True,
         tmp_train = train_set.copy()
         tmp_test = test_set.copy()
     
-    # Label encoding (convert string labels to numeric)
+    # Label encoding
     label_encoder = LabelEncoder()
     original_labels = tmp_train['label'].values
     encoded_labels = label_encoder.fit_transform(original_labels)
@@ -80,15 +81,14 @@ def tune_svm_parameters(train_set, test_set, scale=True, class_weight=True,
     else:
         wts = None
     
-    # Define parameter search range (the same as R code)
+    # Define parameter search range
     cost_range = [2**i for i in range(-5, 16, 2)]
     gamma_range = [2**i for i in range(-15, 4, 2)]
     
-    # Prepare features - ensure all columns are float32 type
+    # Prepare features
     feature_cols = [col for col in tmp_train.columns if col != 'label']
     X_train_pd = tmp_train[feature_cols].copy()
     
-    # Ensure all feature columns are float32
     for col in X_train_pd.columns:
         X_train_pd[col] = X_train_pd[col].astype(np.float32)
     
@@ -113,9 +113,14 @@ def tune_svm_parameters(train_set, test_set, scale=True, class_weight=True,
         current_combination = 0
         
         # Grid search
-        for cost in cost_range:
-            for gamma in gamma_range:
+        for cost_idx, cost in enumerate(cost_range):
+            for gamma_idx, gamma in enumerate(gamma_range):
                 current_combination += 1
+                
+                # **Key improvement 1: Add progress output for all combinations**
+                if verbose:
+                    progress_pct = (current_combination / total_combinations) * 100
+                    print(f"[{current_combination}/{total_combinations}] ({progress_pct:.1f}%) Testing C={cost:.6f}, gamma={gamma:.6f}...", end=' ')
                 
                 try:
                     cv_scores = []
@@ -130,12 +135,11 @@ def tune_svm_parameters(train_set, test_set, scale=True, class_weight=True,
                         y_tr = y_train[train_idx]
                         y_val = y_train[val_idx]
                         
-                        # Ensure types are correct again
                         for col in X_tr_pd.columns:
                             X_tr_pd[col] = X_tr_pd[col].astype(np.float32)
                             X_val_pd[col] = X_val_pd[col].astype(np.float32)
                         
-                        # Convert to cudf - explicitly specify dtype
+                        # Convert to cudf
                         X_tr = cudf.DataFrame()
                         for col in X_tr_pd.columns:
                             X_tr[col] = cudf.Series(X_tr_pd[col].values, dtype=np.float32)
@@ -144,7 +148,6 @@ def tune_svm_parameters(train_set, test_set, scale=True, class_weight=True,
                         for col in X_val_pd.columns:
                             X_val[col] = cudf.Series(X_val_pd[col].values, dtype=np.float32)
                         
-                        # Ensure y is also the correct type
                         y_tr = y_tr.astype(np.int32)
                         y_val = y_val.astype(np.int32)
                         
@@ -157,10 +160,13 @@ def tune_svm_parameters(train_set, test_set, scale=True, class_weight=True,
                         )
                         
                         model.fit(X_tr, y_tr)
-                        
-                        # Compute validation accuracy
                         score = model.score(X_val, y_val)
                         cv_scores.append(float(score))
+                        
+                        # **Key improvement 2: Release GPU memory in time**
+                        del X_tr, X_val, model
+                        gc.collect()
+                        cp.get_default_memory_pool().free_all_blocks()
                     
                     # Calculate mean accuracy
                     avg_score = np.mean(cv_scores)
@@ -172,12 +178,20 @@ def tune_svm_parameters(train_set, test_set, scale=True, class_weight=True,
                         best_gamma = gamma
                         
                         if verbose:
-                            print(f"[{current_combination}/{total_combinations}] ✓ New best: C={cost:.6f}, gamma={gamma:.6f}, CV score={avg_score:.4f}")
+                            print(f"✓ New BEST! Score={avg_score:.4f}")
+                    else:
+                        if verbose:
+                            print(f"Score={avg_score:.4f}")
                 
                 except Exception as e:
                     if verbose:
-                        print(f"[{current_combination}/{total_combinations}] ✗ Failed: C={cost:.6f}, gamma={gamma:.6f}, Error: {str(e)}")
+                        print(f"✗ Failed: {str(e)}")
                     continue
+                
+                # **Key improvement 3: Regularly force garbage collection**
+                if current_combination % 10 == 0:
+                    gc.collect()
+                    cp.get_default_memory_pool().free_all_blocks()
         
         # Save optimal parameters
         parameter[f'cross_{cross_i}'] = {
@@ -193,6 +207,10 @@ def tune_svm_parameters(train_set, test_set, scale=True, class_weight=True,
             print(f"  Gamma: {best_gamma}")
             print(f"  CV Score: {best_score:.4f}")
             print(f"{'='*60}\n")
+        
+        # **Key improvement 4: Clean up memory after each cross_para is completed**
+        gc.collect()
+        cp.get_default_memory_pool().free_all_blocks()
     
     return parameter
 
