@@ -7,6 +7,8 @@ This repository addresses two issues with the CMAP package:
   
 2. Most users either do not have suitable local machines, or, when memory-intensive devices and GPU devices are separate, may prefer a split, step-by-step execution mode.
 
+
+```mermaid
 graph LR
     A[gpu_svm_predict.py] --> B[run_svm.py]
     B --> C[map_cell_preprocess.R]
@@ -18,4 +20,4 @@ graph LR
     style C fill:#ffe1e1
     style D fill:#e1f5ff
     style E fill:#ffe1e1
-
+```
