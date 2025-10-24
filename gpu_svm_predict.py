@@ -46,9 +46,6 @@ def scale_data_by_column(train_set, test_set):
 
 def tune_svm_parameters(train_set, test_set, scale=True, class_weight=True,
                        kernel='rbf', verbose=False, cross_para=[4, 6, 8, 10]):
-    """
-    SVM parameter tuning (GPU acceleration) - 优化版本
-    """
     import gc
     
     parameter = {}
@@ -214,9 +211,6 @@ def tune_svm_parameters(train_set, test_set, scale=True, class_weight=True,
 
 def PredictDomain(train_set, test_set, scale=True, class_weight=True,
                  cost=1, gamma=None, kernel='rbf', st_svm=False, verbose=False):
-    """
-    Domain prediction using SVM (GPU acceleration)
-    """
     # Data normalization
     if scale:
         scale_data = scale_data_by_column(train_set, test_set)
